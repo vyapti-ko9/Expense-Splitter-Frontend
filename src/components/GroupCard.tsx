@@ -28,22 +28,22 @@ export default function GroupCard({ group, onClick }: GroupCardProps) {
   return (
     <div
       onClick={onClick}
-      className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 cursor-pointer hover:shadow-md hover:border-blue-300 transition-all duration-200"
+      className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-800 p-6 cursor-pointer hover:shadow-md hover:border-blue-300 dark:hover:border-blue-400 transition-all duration-200"
     >
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">{group.name}</h3>
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-50 mb-4">{group.name}</h3>
 
       <div className="space-y-2">
         {createdByLabel && (
-          <div className="text-xs text-gray-500">
+          <div className="text-xs text-gray-500 dark:text-slate-400">
             {createdByLabel}
           </div>
         )}
-        <div className="flex items-center gap-2 text-gray-600">
+        <div className="flex items-center gap-2 text-gray-600 dark:text-slate-300">
           <Users className="w-4 h-4" />
           <span className="text-sm">{group.member_count || 0} members</span>
         </div>
 
-        <div className="flex items-center gap-2 text-gray-600">
+        <div className="flex items-center gap-2 text-gray-600 dark:text-slate-300">
           <Receipt className="w-4 h-4" />
           <span className="text-sm">₹{group.total_expenses || 0} total</span>
         </div>

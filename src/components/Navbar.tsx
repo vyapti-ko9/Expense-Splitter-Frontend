@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { LogOut } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { LogOut, Moon, Settings, Sun, User as UserIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useTheme } from '../context/ThemeContext.tsx';
 
 interface NavbarProps {
   userName?: string;
@@ -9,12 +10,37 @@ interface NavbarProps {
 export default function Navbar({ userName }: NavbarProps) {
   const navigate = useNavigate();
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const { theme, toggleTheme } = useTheme();
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     navigate('/login');
   };
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const onMouseDown = (e: MouseEvent) => {
+      const el = menuRef.current;
+      if (!el) return;
+      if (e.target instanceof Node && el.contains(e.target)) return;
+      setMenuOpen(false);
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [menuOpen]);
 
   return (
     <nav className="bg-white shadow-sm border-b border-gray-200">
@@ -25,22 +51,93 @@ export default function Navbar({ userName }: NavbarProps) {
           </div>
 
           {userName && (
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-full">
+            <div className="relative" ref={menuRef}>
+              <button
+                type="button"
+                onClick={() => setMenuOpen((v) => !v)}
+                className="flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-full hover:bg-gray-200 transition-colors"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+              >
                 <div className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-semibold uppercase">
                   {userName.charAt(0)}
                 </div>
                 <span className="text-sm font-medium text-gray-800 max-w-[160px] truncate">
                   {userName}
                 </span>
-              </div>
-              <button
-                onClick={() => setShowLogoutDialog(true)}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 rounded-full border border-red-100 transition-colors"
-              >
-                <LogOut className="w-4 h-4" />
-                Logout
               </button>
+
+              {menuOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 mt-2 w-56 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
+                >
+                  <div className="px-3 py-2 border-b border-gray-100">
+                    <p className="text-xs text-gray-500">Signed in</p>
+                    <p className="text-sm font-semibold text-gray-900 truncate">{userName}</p>
+                  </div>
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      window.alert('Profile editing coming soon.');
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <UserIcon className="w-4 h-4 text-gray-500" />
+                    Profile
+                  </button>
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      window.alert('Settings coming soon.');
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <Settings className="w-4 h-4 text-gray-500" />
+                    Settings
+                  </button>
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      toggleTheme();
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between"
+                  >
+                    <span className="flex items-center gap-2">
+                      {theme === 'dark' ? (
+                        <Sun className="w-4 h-4 text-amber-600" />
+                      ) : (
+                        <Moon className="w-4 h-4 text-slate-600" />
+                      )}
+                      Theme
+                    </span>
+                    <span className="text-xs text-gray-500">{theme === 'dark' ? 'Dark' : 'Light'}</span>
+                  </button>
+
+                  <div className="border-t border-gray-100">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setShowLogoutDialog(true);
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Log out
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

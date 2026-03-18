@@ -81,14 +81,14 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
       <Navbar userName={user?.name} />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h2 className="text-3xl font-bold text-gray-900">Your Groups</h2>
-            <p className="text-gray-600 mt-1">Manage and track shared expenses</p>
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-slate-50">Your Groups</h2>
+            <p className="text-gray-600 dark:text-slate-400 mt-1">Manage and track shared expenses</p>
           </div>
           <button
             onClick={() => setShowCreateModal(true)}
