@@ -43,7 +43,7 @@ export default function Navbar({ userName }: NavbarProps) {
   }, [menuOpen]);
 
   return (
-    <nav className="bg-white shadow-sm border-b border-gray-200">
+    <nav className="relative z-9999 bg-white shadow-sm border-b border-gray-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
@@ -70,7 +70,7 @@ export default function Navbar({ userName }: NavbarProps) {
               {menuOpen && (
                 <div
                   role="menu"
-                  className="absolute right-0 mt-2 w-56 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
+                  className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
                 >
                   <div className="px-3 py-2 border-b border-gray-100">
                     <p className="text-xs text-gray-500">Signed in</p>
@@ -82,7 +82,7 @@ export default function Navbar({ userName }: NavbarProps) {
                     role="menuitem"
                     onClick={() => {
                       setMenuOpen(false);
-                      window.alert('Profile editing coming soon.');
+                      navigate('/profile');
                     }}
                     className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                   >
@@ -95,7 +95,7 @@ export default function Navbar({ userName }: NavbarProps) {
                     role="menuitem"
                     onClick={() => {
                       setMenuOpen(false);
-                      window.alert('Settings coming soon.');
+                      navigate('/settings');
                     }}
                     className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                   >
@@ -115,7 +115,7 @@ export default function Navbar({ userName }: NavbarProps) {
                       {theme === 'dark' ? (
                         <Sun className="w-4 h-4 text-amber-600" />
                       ) : (
-                        <Moon className="w-4 h-4 text-slate-600" />
+                        <Moon className="w-4 h-4 text-blue-600" />
                       )}
                       Theme
                     </span>

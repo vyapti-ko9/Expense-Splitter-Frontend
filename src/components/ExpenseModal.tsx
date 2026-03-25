@@ -38,6 +38,7 @@ export default function ExpenseModal({
     const totalAmount = Number(amount);
     if (!amount.trim()) nextErrors.amount = 'Amount is required';
     else if (!Number.isFinite(totalAmount) || totalAmount <= 0) nextErrors.amount = 'Enter a valid amount';
+    if (members.length === 0) nextErrors.amount = 'At least one member is required';
 
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
@@ -46,7 +47,8 @@ export default function ExpenseModal({
 
     setErrors({});
 
-    const splitAmount = totalAmount / members.length;
+    const memberCount = members.length || 1;
+    const splitAmount = totalAmount / memberCount;
 
     const splits: ExpenseSplit[] = members.map((member) => ({
       user_id: member.id,
@@ -134,7 +136,7 @@ export default function ExpenseModal({
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <p className="text-sm text-blue-900 font-medium mb-2">Split equally among {members.length} members</p>
             <p className="text-sm text-blue-700">
-              Each person pays: ₹{amount ? (parseFloat(amount) / members.length).toFixed(2) : '0.00'}
+              Each person pays: ₹{amount ? (parseFloat(amount) / (members.length || 1)).toFixed(2) : '0.00'}
             </p>
           </div>
 

@@ -19,7 +19,7 @@ export default function GroupCard({ group, onClick }: GroupCardProps) {
   })();
 
   const createdByLabel =
-    currentUserId && group.created_by === currentUserId
+    currentUserId !== null && group.created_by === currentUserId
       ? 'Created by you'
       : group.created_by_name
         ? `Created by ${group.created_by_name}`

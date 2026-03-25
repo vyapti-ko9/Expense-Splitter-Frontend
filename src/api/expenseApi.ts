@@ -12,6 +12,17 @@ export const expenseApi = {
     });
   },
 
+  updateExpense: async (
+    expenseId: number,
+    data: { paid_by: number; amount: number; description: string }
+  ): Promise<void> => {
+    await api.put(`/api/expense/${expenseId}`, {
+      paid_by: data.paid_by,
+      amount: data.amount,
+      description: data.description,
+    });
+  },
+
   getExpenses: async (groupId: number): Promise<Expense[]> => {
     const response = await api.get(`/api/expense/groups/${groupId}`);
     return response.data as Expense[];

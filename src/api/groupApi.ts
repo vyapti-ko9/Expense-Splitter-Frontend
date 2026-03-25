@@ -31,4 +31,10 @@ export const groupApi = {
   addMemberByEmail: async (groupId: number, email: string): Promise<void> => {
     await api.post(`/api/group/${groupId}/add-member-email`, { email });
   },
+
+  removeMember: async (groupId: number, userId: number): Promise<void> => {
+    await api.post(`/api/group/remove-member/${groupId}/member`, {
+      user_id: userId,
+    });
+  },
 };

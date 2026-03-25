@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, ArrowLeft, Users } from 'lucide-react';
+import { Plus, ArrowLeft, Users, UserMinus } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import ExpenseCard from '../components/ExpenseCard';
 import BalanceCard from '../components/BalanceCard';
@@ -17,7 +17,7 @@ export default function GroupPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>('expenses');
   const [user, setUser] = useState<User | null>(null);
-  const [groupName] = useState('Trip to Goa');
+  const [groupName, setGroupName] = useState('Group');
   const [members, setMembers] = useState<User[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [balances, setBalances] = useState<Balance[]>([]);
@@ -33,6 +33,14 @@ export default function GroupPage() {
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [addMemberEmail, setAddMemberEmail] = useState('');
   const [addMemberError, setAddMemberError] = useState<string | null>(null);
+  const [removingMemberId, setRemovingMemberId] = useState<number | null>(null);
+  const [memberToRemove, setMemberToRemove] = useState<User | null>(null);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [editDescription, setEditDescription] = useState('');
+  const [editAmount, setEditAmount] = useState('');
+  const [editPaidBy, setEditPaidBy] = useState<number | ''>('');
+  const [editExpenseError, setEditExpenseError] = useState<string | null>(null);
+  const [updatingExpense, setUpdatingExpense] = useState(false);
 
   const memberName = (value: Settlement['from_user'] | Settlement['to_user']) => {
     if (value === null || value === undefined || value === '') {
@@ -63,6 +71,84 @@ export default function GroupPage() {
     return `${fromName} paid ${toName}`;
   };
 
+  const round2 = (value: number) => Math.round(value * 100) / 100;
+
+  const computeDerivedBalances = (
+    currentMembers: User[],
+    currentExpenses: Expense[],
+    currentSettlements: Settlement[]
+  ): Balance[] => {
+    if (currentMembers.length === 0) return [];
+
+    const balanceByUser = new Map<number, number>();
+    currentMembers.forEach((member) => balanceByUser.set(member.id, 0));
+
+    for (const exp of currentExpenses) {
+      const totalAmount = Number(exp.amount);
+      if (!Number.isFinite(totalAmount) || totalAmount <= 0) continue;
+
+      const splitAmount = totalAmount / currentMembers.length;
+      for (const member of currentMembers) {
+        balanceByUser.set(member.id, (balanceByUser.get(member.id) ?? 0) - splitAmount);
+      }
+
+      const paidBy = Number((exp as any).paid_by);
+      if (balanceByUser.has(paidBy)) {
+        balanceByUser.set(paidBy, (balanceByUser.get(paidBy) ?? 0) + totalAmount);
+      }
+    }
+
+    for (const settlement of currentSettlements) {
+      const fromUser = Number(settlement.from_user);
+      const toUser = Number(settlement.to_user);
+      const amount = Number(settlement.amount);
+      if (!Number.isFinite(amount) || amount <= 0) continue;
+      if (!balanceByUser.has(fromUser) || !balanceByUser.has(toUser)) continue;
+
+      // `from_user` pays `to_user`: payer owes less, receiver gets back less.
+      balanceByUser.set(fromUser, (balanceByUser.get(fromUser) ?? 0) + amount);
+      balanceByUser.set(toUser, (balanceByUser.get(toUser) ?? 0) - amount);
+    }
+
+    return currentMembers.map((member) => ({
+      id: member.id,
+      name: member.name,
+      balance: round2(balanceByUser.get(member.id) ?? 0),
+    }));
+  };
+
+  const loadGroupData = async (gid: number) => {
+    const [rawMembers, s, ex, groups] = await Promise.all([
+      groupApi.getMembers(gid),
+      settlementApi.getSettlements(gid),
+      expenseApi.getExpenses(gid),
+      groupApi.getGroups(),
+    ]);
+
+    const normalizedMembers: User[] = rawMembers.map((m: any) => ({
+      id: m.id ?? m.user_id,
+      name: m.name,
+      email: m.email,
+    }));
+
+    const normalizedSettlements: Settlement[] = (s as any[]).map((item) => ({
+      id: item.id,
+      group_id: gid,
+      from_user: item.paid_by ?? item.from_user ?? 'Unknown user',
+      to_user: item.to_user ?? '',
+      amount: item.amount,
+      date: item.created_at ?? item.date,
+    }));
+
+    const currentGroup = groups.find((g) => g.id === gid);
+    const derivedBalances = computeDerivedBalances(normalizedMembers, ex, normalizedSettlements);
+    setGroupName(currentGroup?.name?.trim() ? currentGroup.name : `Group #${gid}`);
+    setMembers(normalizedMembers);
+    setBalances(derivedBalances);
+    setSettlements(normalizedSettlements);
+    setExpenses(ex);
+  };
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -83,32 +169,7 @@ export default function GroupPage() {
         setLoading(true);
         setError(null);
 
-        const [rawMembers, b, s, ex] = await Promise.all([
-          groupApi.getMembers(gid),
-          expenseApi.getBalances(gid),
-          settlementApi.getSettlements(gid),
-          expenseApi.getExpenses(gid),
-        ]);
-
-        const normalizedMembers: User[] = rawMembers.map((m: any) => ({
-          id: m.id ?? m.user_id,
-          name: m.name,
-          email: m.email,
-        }));
-
-        const normalizedSettlements: Settlement[] = (s as any[]).map((item) => ({
-          id: item.id,
-          group_id: gid,
-          from_user: item.paid_by ?? item.from_user ?? 'Unknown user',
-          to_user: item.to_user ?? '',
-          amount: item.amount,
-          date: item.created_at ?? item.date,
-        }));
-
-        setMembers(normalizedMembers);
-        setBalances(b);
-        setSettlements(normalizedSettlements);
-        setExpenses(ex);
+        await loadGroupData(gid);
       } catch (err: any) {
         const message =
           err?.response?.data?.message ||
@@ -143,12 +204,7 @@ export default function GroupPage() {
         splits: expenseData.splits,
       });
 
-      const [updatedBalances, updatedExpenses] = await Promise.all([
-        expenseApi.getBalances(gid),
-        expenseApi.getExpenses(gid),
-      ]);
-      setBalances(updatedBalances);
-      setExpenses(updatedExpenses);
+      await loadGroupData(gid);
     } catch (err: any) {
       const message =
         err?.response?.data?.message ||
@@ -193,12 +249,7 @@ export default function GroupPage() {
         amount: amt,
       });
 
-      const [updatedSettlements, updatedBalances] = await Promise.all([
-        settlementApi.getSettlements(gid),
-        expenseApi.getBalances(gid),
-      ]);
-      setSettlements(updatedSettlements);
-      setBalances(updatedBalances);
+      await loadGroupData(gid);
 
       setSettleFrom('');
       setSettleTo('');
@@ -231,13 +282,7 @@ export default function GroupPage() {
       setError(null);
 
       await groupApi.addMemberByEmail(gid, addMemberEmail.trim());
-      const rawUpdatedMembers = await groupApi.getMembers(gid);
-      const normalizedMembers: User[] = rawUpdatedMembers.map((m: any) => ({
-        id: m.id ?? m.user_id,
-        name: m.name,
-        email: m.email,
-      }));
-      setMembers(normalizedMembers);
+      await loadGroupData(gid);
       setAddMemberEmail('');
       setShowAddMemberModal(false);
     } catch (err: any) {
@@ -251,8 +296,86 @@ export default function GroupPage() {
     }
   };
 
+  const confirmRemoveMember = async () => {
+    if (!memberToRemove) return;
+    const gid = Number(groupId);
+    if (!Number.isFinite(gid)) return;
+
+    const memberId = memberToRemove.id;
+
+    try {
+      setRemovingMemberId(memberId);
+      setError(null);
+      await groupApi.removeMember(gid, memberId);
+      await loadGroupData(gid);
+      setMemberToRemove(null);
+    } catch (err: any) {
+      const message =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        'Failed to remove member.';
+      setError(message);
+    } finally {
+      setRemovingMemberId(null);
+    }
+  };
+
+  const openEditExpenseModal = (expense: Expense) => {
+    setEditingExpense(expense);
+    setEditDescription(expense.description ?? '');
+    setEditAmount(String(expense.amount ?? ''));
+    setEditPaidBy(Number(expense.paid_by));
+    setEditExpenseError(null);
+  };
+
+  const handleUpdateExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingExpense?.id) return;
+
+    const gid = Number(groupId);
+    if (!Number.isFinite(gid)) return;
+
+    const amountNum = Number(editAmount);
+    const paidByNum = Number(editPaidBy);
+    if (!editDescription.trim()) {
+      setEditExpenseError('Description is required');
+      return;
+    }
+    if (!Number.isFinite(amountNum) || amountNum <= 0) {
+      setEditExpenseError('Enter a valid amount');
+      return;
+    }
+    if (!Number.isFinite(paidByNum) || paidByNum <= 0) {
+      setEditExpenseError('Please select who paid');
+      return;
+    }
+
+    try {
+      setUpdatingExpense(true);
+      setError(null);
+      setEditExpenseError(null);
+
+      await expenseApi.updateExpense(editingExpense.id, {
+        description: editDescription.trim(),
+        amount: amountNum,
+        paid_by: paidByNum,
+      });
+
+      await loadGroupData(gid);
+      setEditingExpense(null);
+    } catch (err: any) {
+      const message =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        'Failed to update expense.';
+      setEditExpenseError(message);
+    } finally {
+      setUpdatingExpense(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
       <Navbar userName={user?.name} />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -332,7 +455,11 @@ export default function GroupPage() {
                         <p className="text-center text-gray-500 py-8">No expenses yet</p>
                       ) : (
                         expenses.map((expense) => (
-                          <ExpenseCard key={expense.id} expense={expense} />
+                          <ExpenseCard
+                            key={expense.id}
+                            expense={expense}
+                            onEdit={openEditExpenseModal}
+                          />
                         ))
                       )}
                     </div>
@@ -373,20 +500,20 @@ export default function GroupPage() {
                         settlements.map((settlement) => (
                           <div
                             key={settlement.id}
-                            className="bg-green-50 border border-green-200 rounded-lg p-4"
+                            className="rounded-lg border border-green-200 bg-green-50 p-4 dark:border-emerald-800/70 dark:bg-emerald-950/45 dark:shadow-sm dark:shadow-black/20"
                           >
-                            <div className="flex justify-between items-center">
-                              <div>
-                                <p className="font-medium text-gray-900">
+                            <div className="flex justify-between items-center gap-4">
+                              <div className="min-w-0">
+                                <p className="font-medium text-slate-900 dark:text-slate-100">
                                   {formatSettlementText(settlement)}
                                 </p>
                                 {settlement.date && (
-                                  <p className="text-sm text-gray-600 mt-1">
+                                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
                                     {new Date(settlement.date).toLocaleDateString()}
                                   </p>
                                 )}
                               </div>
-                              <p className="text-lg font-semibold text-green-600">
+                              <p className="shrink-0 text-lg font-semibold tabular-nums text-green-700 dark:text-emerald-400">
                                 ₹{settlement.amount}
                               </p>
                             </div>
@@ -414,15 +541,27 @@ export default function GroupPage() {
               <div className="space-y-3">
                 {members.map((member) => (
                   <div key={member.id} className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
                       <span className="text-blue-600 font-medium">
                         {member.name.charAt(0).toUpperCase()}
                       </span>
                     </div>
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <p className="font-medium text-gray-900">{member.name}</p>
-                      <p className="text-sm text-gray-500">{member.email}</p>
+                      <p className="text-sm text-gray-500 truncate">{member.email}</p>
                     </div>
+                    {user && member.id !== user.id && (
+                      <button
+                        type="button"
+                        onClick={() => setMemberToRemove(member)}
+                        disabled={removingMemberId === member.id}
+                        className="shrink-0 inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                        title="Remove member"
+                      >
+                        <UserMinus className="w-4 h-4" />
+                        {removingMemberId === member.id ? '…' : 'Remove'}
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -438,6 +577,59 @@ export default function GroupPage() {
         members={members}
         currentUserId={user?.id || 1}
       />
+
+      {memberToRemove && (
+        <div
+          className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="remove-member-title"
+          onClick={() => {
+            if (!removingMemberId) setMemberToRemove(null);
+          }}
+        >
+          <div
+            className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 border border-gray-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3 mb-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100">
+                <UserMinus className="h-5 w-5 text-red-600" aria-hidden />
+              </div>
+              <div>
+                <h3 id="remove-member-title" className="text-xl font-semibold text-gray-900">
+                  Remove member?
+                </h3>
+                <p className="mt-2 text-sm text-gray-600 leading-relaxed">
+                  <span className="font-medium text-gray-900">{memberToRemove.name}</span>
+                  {memberToRemove.email ? (
+                    <span className="text-gray-500"> ({memberToRemove.email})</span>
+                  ) : null}{' '}
+                  will be removed from this group. This does not delete their account.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => !removingMemberId && setMemberToRemove(null)}
+                disabled={!!removingMemberId}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:pointer-events-none"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmRemoveMember()}
+                disabled={!!removingMemberId}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {removingMemberId ? 'Removing…' : 'Remove'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showAddMemberModal && (
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -556,6 +748,79 @@ export default function GroupPage() {
                   className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                 >
                   Settle
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {editingExpense && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-xl font-semibold text-gray-900 mb-4">Edit Expense</h3>
+            <form onSubmit={handleUpdateExpense} className="space-y-4">
+              {editExpenseError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {editExpenseError}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                <input
+                  type="text"
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                  placeholder="e.g., Dinner at restaurant"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Amount (₹)</label>
+                <input
+                  type="number"
+                  value={editAmount}
+                  onChange={(e) => setEditAmount(e.target.value)}
+                  min="0"
+                  step="0.01"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Paid by</label>
+                <select
+                  value={editPaidBy}
+                  onChange={(e) => setEditPaidBy(e.target.value ? Number(e.target.value) : '')}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                >
+                  <option value="">Select member</option>
+                  {members.map((member) => (
+                    <option key={member.id} value={member.id}>
+                      {member.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => !updatingExpense && setEditingExpense(null)}
+                  disabled={updatingExpense}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={updatingExpense}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                >
+                  {updatingExpense ? 'Saving...' : 'Save'}
                 </button>
               </div>
             </form>
