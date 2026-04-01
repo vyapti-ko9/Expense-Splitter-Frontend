@@ -62,4 +62,8 @@ export const authApi = {
       email: data.email.trim(),
     };
   },
+
+  deleteAccount: async (password: string): Promise<void> => {
+    await api.post('/auth/delete-account', { password });
+  },
 };

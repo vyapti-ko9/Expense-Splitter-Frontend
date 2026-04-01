@@ -43,11 +43,11 @@ export default function Navbar({ userName }: NavbarProps) {
   }, [menuOpen]);
 
   return (
-    <nav className="relative z-9999 bg-white shadow-sm border-b border-gray-200">
+    <nav className="relative z-9999 bg-gray-50 dark:bg-slate-950 shadow-sm border-b border-gray-200 dark:border-slate-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
-            <h1 className="text-2xl font-bold text-gray-900">Expense Splitter</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-50">Expense Splitter</h1>
           </div>
 
           {userName && (
@@ -55,14 +55,14 @@ export default function Navbar({ userName }: NavbarProps) {
               <button
                 type="button"
                 onClick={() => setMenuOpen((v) => !v)}
-                className="flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-full hover:bg-gray-200 transition-colors"
+                className="flex items-center gap-2 bg-gray-100 dark:bg-slate-800 px-3 py-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
               >
                 <div className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-semibold uppercase">
                   {userName.charAt(0)}
                 </div>
-                <span className="text-sm font-medium text-gray-800 max-w-[160px] truncate">
+                <span className="text-sm font-medium text-gray-800 dark:text-slate-200 max-w-[160px] truncate">
                   {userName}
                 </span>
               </button>
